@@ -1,3 +1,16 @@
+//! # grace
+//!
+//! Portable library for intercepting various kinds of shutdown signal,
+//! allowing your application to shutdown gracefully.
+//!
+//! Windows does not have signals (although they are emulated to some
+//! extent by `libc`) so this crate uses the appropriate windows API
+//! functions directly to respond to interrupt and shutdown requests.
+//!
+//! On other platforms signals are used via the `signal-stack`
+//! crate.
+#![deny(missing_docs)]
+
 use std::cell::UnsafeCell;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -15,14 +28,32 @@ use futures::SinkExt;
 
 static STATE: Mutex<Option<State>> = Mutex::const_new(RawMutex::INIT, None);
 
+/// This crate currently distinguishes two kinds of shutdown request.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[non_exhaustive]
 pub enum ShutdownType {
-    /// Program was interrupted via eg. Ctrl + C
+    /// Program was interrupted via eg. Ctrl + C. This corresponds
+    /// to `SIGINT` on unix-based platforms.
     Interrupt,
-    /// Program was terminated normally
+    /// Program was requested to terminate normally. This corresponds
+    /// to `SIGTERM` on unix-based platforms.
     Terminate,
 }
 
+/// This trait is implemented for functions which match the required signature
+/// for shutdown handlers.
+///
+/// The shutdown request type is passed in as a parameter.
+/// The handler will be called on a background thread, so does not need to be
+/// async-signal-safe.
+///
+/// On windows, this is simply the way the API is designed to work (windows
+/// will automatically spawn a thread to handle the shutdown request).
+///
+/// On other platforms, this crate will spawn a background thread whenever
+/// the first `ShutdownGuard` is created, and will stop it whenever the last
+/// `ShutdownGuard` is destroyed. Shutdown handlers will run on this
+/// background thread.
 pub trait Handler: FnMut(ShutdownType) + Send + 'static {}
 impl<T: FnMut(ShutdownType) + Send + 'static> Handler for T {}
 
@@ -88,15 +119,23 @@ fn handle(type_: ShutdownType) {
     std::process::exit(3);
 }
 
+/// This is the primary interface to the crate.
+///
+/// Construct an instance of this type to begin intercepting shutdown requests.
+/// When the guard is dropped, shutdown requests will no longer be intercepted.
+///
+/// There are several constructors to simplify common usage patterns.
 pub struct ShutdownGuard<'a> {
     types: &'a [ShutdownType],
     handler: Arc<UnsafeCell<dyn Handler>>,
 }
 
 impl<'a> ShutdownGuard<'a> {
+    /// Call a user-defined function whenever a shutdown is requested.
     pub fn new<H: Handler>(types: &'a [ShutdownType], handler: H) -> Self {
         unsafe { Self::new_inner(types, Arc::new(UnsafeCell::new(handler))) }
     }
+    /// Send on an mpsc channel whenever a shutdown is requested.
     pub fn new_channel(types: &'a [ShutdownType]) -> (Self, mpsc::Receiver<ShutdownType>) {
         let (tx, rx) = mpsc::channel();
         (
@@ -106,6 +145,7 @@ impl<'a> ShutdownGuard<'a> {
             rx,
         )
     }
+    /// Send to an async mpsc channel whenever a shutdown is requested.
     #[cfg(feature = "futures")]
     pub fn new_stream(
         types: &'a [ShutdownType],
@@ -135,6 +175,8 @@ impl<'a> ShutdownGuard<'a> {
 
         Self { types, handler }
     }
+    /// Forget this guard, leaving the shutdown handler installed for the
+    /// lifetime of the program.
     pub fn forget(mut self) {
         self.types = &[];
     }

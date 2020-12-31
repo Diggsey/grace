@@ -7,6 +7,14 @@ use libc::c_int;
 use super::backend::{PlatformSigData, PlatformSigHandler, SigHandler};
 use super::signal_safe::RwLock;
 
+/// This trait is implemented for functions which match the required signature
+/// for signal handlers.
+///
+/// The signal number is passed in as a parameter.
+/// The handler should return `true` if the signal was handled, in which case
+/// no further action will be taken. If `false` is returned, then the next
+/// handler on the stack will be called, or, if there are no more handlers,
+/// the default behaviour for the signal will occur.
 pub trait Handler: Fn(c_int) -> bool + Send + Sync {}
 impl<T: Fn(c_int) -> bool + Send + Sync> Handler for T {}
 
