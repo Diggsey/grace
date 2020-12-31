@@ -1,0 +1,20 @@
+[workspace]
+members = ["signal-stack"]
+
+[package]
+name = "grace"
+version = "0.1.0"
+authors = ["Diggory Blake <diggsey@googlemail.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[dependencies]
+parking_lot = "0.11.1"
+futures = { version = "0.3.8", optional = true }
+
+[target.'cfg(not(windows))'.dependencies]
+signal-stack = { version = "0.1.0", path = "signal-stack" }
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3.9", features = ["consoleapi"] }
