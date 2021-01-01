@@ -48,7 +48,10 @@ impl Eq for HandlerId {}
 impl PartialEq for HandlerId {
     fn eq(&self, other: &Self) -> bool {
         // Comparing wide pointers has unpredictable results, so compare thin pointers.
-        Arc::as_ptr(&self.0) as *const () == Arc::as_ptr(&other.0) as *const ()
+        std::ptr::eq(
+            Arc::as_ptr(&self.0) as *const (),
+            Arc::as_ptr(&other.0) as *const (),
+        )
     }
 }
 

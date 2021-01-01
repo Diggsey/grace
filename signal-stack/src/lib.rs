@@ -40,9 +40,11 @@ pub struct SignalHandlerGuard<'a> {
 }
 
 impl<'a> SignalHandlerGuard<'a> {
-    /// Add a new signal handler. The handler function *must* be
-    /// async-signal-safe, which places strong restrictions on what the handler
-    /// may do.
+    /// Add a new signal handler.
+    ///
+    /// # Safety
+    /// The handler function *must* be `async-signal-safe`, which places severe
+    /// restrictions on what the function may do.
     ///
     /// A non-exhaustive list of things that are not allowed:
     /// - Allocating or freeing memory.

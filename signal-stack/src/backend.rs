@@ -85,7 +85,7 @@ mod handler_impl {
         fn ours() -> Self {
             Self(unsafe {
                 let mut res: libc::sigaction = mem::zeroed();
-                res.sa_sigaction = mem::transmute::<SigActionPtr, _>(handler_thunk);
+                res.sa_sigaction = handler_thunk as libc::sighandler_t;
                 res.sa_flags = libc::SA_SIGINFO | libc::SA_NOCLDSTOP | libc::SA_RESTART;
                 libc::sigfillset(&mut res.sa_mask);
                 res
